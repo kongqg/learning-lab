@@ -31,15 +31,18 @@ $$
 - $S$：状态空间（state space）
 - $A$：动作空间（action space）
 - $P$：**状态转移概率分布 / 转移核**（transition kernel）
+  
   $$
   P(s' \mid s,a) = \Pr(S_{t+1}=s' \mid S_t=s, A_t=a)
   $$
+
 - $R$：奖励函数（reward）
   - 常见写法：$R(s,a)$ 或随机奖励分布 $P(r \mid s,a)$。
-  - 也可写成**期望奖励**：
-  $$
-  r(s,a) = \mathbb{E}[R_{t+1} \mid s,a]
-  $$
+  - 也可写成期望奖励：
+    $$
+    r(s,a) = \mathbb{E}[R_{t+1} \mid s,a]
+    $$
+
 - $\gamma$：折扣因子（discount factor），通常 $\gamma \in [0, 1]$。
 
 ---
