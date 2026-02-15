@@ -27,15 +27,19 @@ $$
 ## 2. 为什么 REINFORCE 对连续动作更自然？
 
 连续动作下，价值方法（如 Q-learning）常需要：
+
 $$
 \max_{a} Q(s,a)
 $$
+
 这是一个连续优化问题（高维时困难且不稳定）。
 
 REINFORCE 直接参数化策略分布，例如：
+
 $$
 \pi_\theta(a|s)=\mathcal N(\mu_\theta(s),\sigma_\theta(s))
 $$
+
 从分布采样动作并更新分布参数，无需解 $\arg\max$。
 
 ---
