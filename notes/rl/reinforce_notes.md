@@ -49,19 +49,24 @@ $$
 ## 3. Baseline：降方差但不改变期望梯度
 
 ### 3.1 加 baseline 的形式
+
 $$
 \nabla_\theta J(\theta)=\mathbb{E}\Big[\sum_{t} \nabla_\theta \log \pi_\theta(a_t|s_t)\, (G_t-b(s_t))\Big]
 $$
 
 ### 3.2 为什么不改变期望梯度？
 关键性质：
+
 $$
 \mathbb{E}_{a\sim \pi_\theta(\cdot|s)}[\nabla_\theta \log \pi_\theta(a|s)] = 0
 $$
+
 因此若 $b(s)$ 与动作 $a$ 无关：
+
 $$
 \mathbb{E}[\nabla_\theta \log \pi_\theta(a|s)\, b(s)] = b(s)\cdot 0 = 0
 $$
+
 所以 baseline 只降方差，不引入偏差。
 
 > **关键条件（易忽略）**：baseline **不能依赖动作 $a_t$**（可以依赖状态/时间/历史）。
@@ -76,9 +81,11 @@ $$
 原始 REINFORCE 有时会给整条轨迹所有时间步用同一个总回报，这会把很多“与当前动作无关的未来噪声”乘进梯度 ⇒ 方差更大。
 
 ### 4.2 Reward-to-Go 的定义
+
 $$
 G^{\text{rtg}}_t=\sum_{k=0}^{T-t-1}\gamma^k r_{t+1+k}
 $$
+
 即从时刻 $t$ 开始的“后缀回报”，对更早的动作更公平，也显著降方差（期望不变）。
 
 ---
@@ -88,9 +95,11 @@ $$
 ## 5. On-policy：为什么 REINFORCE 不能直接反复用旧数据？
 
 REINFORCE 的期望是对当前策略分布取的：
+
 $$
 \mathbb{E}_{\tau\sim \pi_\theta}[\cdot]
 $$
+
 如果用旧策略 $\pi_{\text{old}}$ 的数据直接估计，会得到偏的梯度（除非用重要性采样修正）。
 
 ---
@@ -171,7 +180,11 @@ for iteration = 1..:
 
 ## 8. 记忆卡片（只背这 5 行）
 
-- REINFORCE：$\nabla \log \pi \times$ return  
+- REINFORCE：
+
+$$\nabla \log \pi \times$$
+
+return  
 - 连续动作友好：不需要 $\arg\max_a Q(s,a)$，直接学分布  
 - baseline：$G_t-b(s_t)$，**降方差不改期望**（b 不依赖 a）  
 - Reward-to-Go：用后缀回报 $G_t$ 代替全轨迹总回报，方差更小  
