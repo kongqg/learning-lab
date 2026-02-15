@@ -1,0 +1,170 @@
+┌────────────────────────────────────────────────────────────────────┐
+│ 0) 初始化（Init）                                                   │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+[创建环境 env / 向量环境 VecEnv(N_env)]
+  ↓
+[初始化 Actor-Critic 网络 πθ(a|s), Vφ(s)]
+  ↓
+[初始化超参]
+   - γ (gamma), λ (gae_lambda)
+   - T = rollout_len (n_steps)
+   - K = update_epochs
+   - M = minibatch_size
+   - ε = clip_range
+   - c1 = value_coef, c2 = entropy_coef
+   - max_grad_norm
+   - (可选) target_kl, lr_schedule
+  ↓
+[初始化 RolloutBuffer/Storage]
+   缓存字段通常包括：
+   s_t, a_t, r_t, done_t, logπ_old(a_t|s_t), V(s_t)
+   (可选) next_obs / info / time_limit_truncation
+
+══════════════════════════════════════════════════════════════════════
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 1) 训练主循环（Train Loop）：每次循环 = 先采样一段 rollout 再更新     │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+┌────────────────────────────────────────────────────────────────────┐
+│ 1.1 收集轨迹（Collect Rollout，On-policy 采样）                     │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+for t = 0 ... T-1:
+  ↓
+  [用当前策略前向]
+     - 得到动作分布 distθ(.|s_t)
+       · 离散：Categorical(logits)
+       · 连续：Gaussian(μ, σ)（通常输出 μ 和 logσ）
+     - 采样动作 a_t ~ distθ
+     - 计算 logπθ(a_t|s_t)  (保存为 logp_old)
+     - 计算 Vφ(s_t)         (保存为 value)
+  ↓
+  [与环境交互]
+     s_{t+1}, r_t, done_t, info = env.step(a_t)
+  ↓
+  [把 transition 存入 buffer]
+     store(s_t, a_t, r_t, done_t, logp_old, value)
+  ↓
+  [若 done=True：环境 reset，继续填满 T 步（向量环境会自动处理）]
+end for
+  ↓
+[Bootstrap：计算最后一步的 V(s_T)]
+   last_value = Vφ(s_T)          # 注意：如果 episode 真终止 done=True，则 bootstrap 会被 mask 掉
+
+══════════════════════════════════════════════════════════════════════
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 1.2 计算优势与回报（GAE + Returns）                                  │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+[用 GAE 反向递推优势 Advantage A_t]
+  ↓
+  gae = 0
+  for t = T-1 ... 0:
+      nonterminal = 1 - done_t
+      δ_t = r_t + γ * V(s_{t+1}) * nonterminal - V(s_t)
+      gae = δ_t + γ * λ * nonterminal * gae
+      A_t = gae
+  end
+  ↓
+[计算回报 Returns]
+   R_t = A_t + V(s_t)
+  ↓
+[可选但非常常用：优势标准化]
+   A_t = (A_t - mean(A)) / (std(A) + 1e-8)
+
+══════════════════════════════════════════════════════════════════════
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 1.3 PPO 更新（Optimize：多轮 epoch + minibatch）                      │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+[把 buffer 展平为训练集 D]
+   D = { (s_t, a_t, logp_old_t, A_t, R_t, V_old_t) }  # 向量环境会展平为 T*N_env 条样本
+  ↓
+for epoch = 1 ... K:
+  ↓
+  [打乱 D，按 minibatch_size 切分]
+  ↓
+  for each minibatch B:
+    ↓
+    [前向计算新策略与新价值]
+       logp_new = logπθ(a|s) in B
+       entropy  = H(distθ(.|s)) in B
+       V_new    = Vφ(s) in B
+    ↓
+    [计算重要性采样比率 ratio]
+       ratio = exp(logp_new - logp_old)
+    ↓
+    [策略目标（Clipped Surrogate Objective）]
+       L1 = ratio * A
+       L2 = clip(ratio, 1-ε, 1+ε) * A
+       policy_loss = - mean( min(L1, L2) )
+    ↓
+    [价值函数损失（Value Loss）]
+       value_loss = mean( (V_new - R)^2 )
+       (可选：value clipping，防止 V 更新过猛)
+         V_clip = V_old + clip(V_new - V_old, -ε_v, +ε_v)
+         value_loss = mean( max((V_new-R)^2, (V_clip-R)^2) )
+    ↓
+    [熵奖励（鼓励探索）]
+       entropy_bonus = mean(entropy)
+    ↓
+    [总损失（通常这样组合）]
+       total_loss = policy_loss + c1 * value_loss - c2 * entropy_bonus
+    ↓
+    [反向传播与更新]
+       optimizer.zero_grad()
+       total_loss.backward()
+       clip_grad_norm_(θ, φ, max_grad_norm)
+       optimizer.step()
+    ↓
+    [可选：KL Early Stop（很常用）]
+       approx_kl = mean(logp_old - logp_new)
+       if approx_kl > target_kl: break
+  end minibatch
+end epoch
+  ↓
+[清空 buffer，进入下一轮 rollout]
+
+══════════════════════════════════════════════════════════════════════
+
+┌────────────────────────────────────────────────────────────────────┐
+│ 1.4 日志 / 评估 / 保存（Log/Eval/Checkpoint）                         │
+└────────────────────────────────────────────────────────────────────┘
+  ↓
+[记录指标]
+   - episodic_return / success_rate
+   - policy_loss / value_loss / entropy
+   - approx_kl / clip_fraction
+   - explained_variance (可选)
+  ↓
+[可选：定期 evaluation（用 deterministic action）]
+  ↓
+[可选：保存 checkpoint（策略网络、价值网络、归一化器等）]
+  ↓
+[回到 1.1 继续]
+
+
+
+1）算 GAE 的时候：为什么既有 discount(γ) 又有 lambda(λ)？
+γ（gamma）：是环境的“时间折扣”，决定未来奖励在理论目标里应该衰减多少（MDP 定义的一部分）。
+λ（gae_lambda）：是算法里人为引入的“偏差-方差权衡旋钮”，决定你用多少“多步信息”来估 advantage：
+λ 越小 → 更像 TD(0)（低方差、高偏差）
+λ 越大 → 更像 Monte Carlo（低偏差、高方差）
+
+2）T 是什么？T 可以不是完整 episode 吗？
+为什么 PPO 常用固定 T（而不是等 episode 结束）？
+因为 PPO 是 on-policy：
+需要“用当前策略”收集一批新数据
+收集太少更新不稳定，收集太多又会过时
+所以工程上最常用的是：
+每次固定收集 T 步（如果是 N_env 个并行环境，总样本数是 T×N_env），然后更新 K 个 epoch。
+
+3）为什么要每批数据更新K个epoch？
+因为数据很贵，ppo学的很慢
+
+4）为什么要有Early stop by KL（非常实用）
+设置一个target_KL 如果在这批数据里面 策略离的太远了，就提早停止
