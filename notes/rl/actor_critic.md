@@ -2,7 +2,7 @@
 
 > 关键词：**Actor + Critic**、**Advantage / TD error**、**Bootstrap**、**Bias–Variance Tradeoff**、**n-step**、**Stop-Gradient**、**Advantage Normalization**、**Entropy Bonus**、**On-policy 数据新鲜度**
 
----
+- --
 
 
 ## 1. AC 的核心：比 REINFORCE 多了什么？解决什么？
@@ -10,20 +10,48 @@
 - **主要解决**：REINFORCE 方差太高（训练抖、样本效率差）
 - **代价**：bootstrap + value approximation 带来 bias（critic 不准会带偏 actor）
 
----
+- --
 
 
 ## 2. Actor 更新（Policy Gradient with Advantage）
 
-### 2.1 常见形式$$L_{\text{actor}}(\theta) = -\mathbb{E}[\log \pi_\theta(a_t|s_t)\, A_t]$$### 2.2 一步 Advantage（TD error）$$A_t \approx \delta_t = r_{t+1} + \gamma (1-d_t) V_\phi(s_{t+1}) - V_\phi(s_t)$$---
+### 2.1 常见形式
+
+$$
+L_{\text{actor}}(\theta) = -\mathbb{E}[\log \pi_\theta(a_t|s_t)\, A_t]
+$$
+
+### 2.2 一步 Advantage（TD error）
+
+$$
+A_t \approx \delta_t = r_{t+1} + \gamma (1-d_t) V_\phi(s_{t+1}) - V_\phi(s_t)
+$$
+
+- --
 
 
 ## 3. Critic 更新（Value Regression）
 
-### 3.1 一步 TD target$$y_t = r_{t+1} + \gamma (1-d_t) V_\phi(s_{t+1})$$### 3.2 MSE loss$$L_{\text{critic}}(\phi) = \mathbb{E}\big[(V_\phi(s_t) - y_t)^2\big]$$---
+### 3.1 一步 TD target
+
+$$
+y_t = r_{t+1} + \gamma (1-d_t) V_\phi(s_{t+1})
+$$
+
+### 3.2 MSE loss
+
+$$
+L_{\text{critic}}(\phi) = \mathbb{E}\big[(V_\phi(s_t) - y_t)^2\big]
+$$
+
+- --
 
 
-## 4. n-step return（A2C/A3C 常用）$$y_t^{(n)}=\sum_{k=0}^{n-1}\gamma^k r_{t+1+k} + \gamma^n V_\phi(s_{t+n})$$
+## 4. n-step return（A2C/A3C 常用）
+
+$$
+y_t^{(n)}=\sum_{k=0}^{n-1}\gamma^k r_{t+1+k} + \gamma^n V_\phi(s_{t+n})
+$$
 
 
 关系：
@@ -31,14 +59,14 @@
 - n 越小更接近 TD(0)：方差更小、bias 更大
 - TD($\lambda$) ≈ 把不同 n-step return 做指数加权混合
 
----
+- --
 
 
 ## 5. A2C vs A3C（一句话）
 - **A3C**：多 worker 异步采样/异步推梯度（吞吐高、实现复杂、梯度更噪）
 - **A2C**：多 worker 同步采样/同步更新（GPU 友好、实现简单、更稳定）
 
----
+- --
 
 # 6. 容易忽略但对理解/实现极其重要的点（必背清单）
 
@@ -72,24 +100,36 @@
 
 
 ## 6.7 连续动作必须管好方差$\sigma$/ 熵
--$\sigma$过快变小 ⇒ 探索塌陷 ⇒ 容易卡局部最优
+- $\sigma$过快变小 ⇒ 探索塌陷 ⇒ 容易卡局部最优
 - 常用 entropy bonus：
 
-$$L = L_{\text{actor}} + c_v L_{\text{critic}} - c_e \mathcal H(\pi_\theta)$$---
 
-# 7. 最常见的总 loss（A2C/A3C 风格）$$L(\theta,\phi) = 
--\mathbb{E}[\log \pi_\theta(a_t|s_t)\, A_t]
+
+$$
+L = L_{\text{actor}} + c_v L_{\text{critic}} - c_e \mathcal H(\pi_\theta)
+$$
+
+- --
+
+# 7. 最常见的总 loss（A2C/A3C 风格）
+
+$$
+L(\theta,\phi) =
+- \mathbb{E}[\log \pi_\theta(a_t|s_t)\, A_t]
 + c_v\, \mathbb{E}[(V_\phi(s_t)-y_t)^2]
-- c_e\, \mathbb{E}[\mathcal H(\pi_\theta(\cdot|s_t))]$$---
+- c_e\, \mathbb{E}[\mathcal H(\pi_\theta(\cdot|s_t))]
+$$
+
+- --
 
 
 ## 8. 记忆卡片（5 行）
 - AC = policy gradient + value baseline（降方差）
--$A_t \approx \delta_t = r+\gamma V(s')-V(s)$
+- $A_t \approx \delta_t = r+\gamma V(s')-V(s)$
 - bootstrap 降方差但引入 critic bias
 - n-step/λ 都是在调 bias–variance
 - 实现成败关键：stop-grad、adv norm、entropy、on-policy 新鲜度
 
----
+- --
 
 *生成时间：2026-01-13 03:45:44*
